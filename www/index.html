@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Flip</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --text: #f5f5f4;
+    --text-dim: rgba(245,245,244,0.34);
+    --text-faint: rgba(245,245,244,0.16);
+    --glass: rgba(255,255,255,0.06);
+    --glass-line: rgba(255,255,255,0.14);
+  }
+  body.light {
+    --text: #1a1a18;
+    --text-dim: rgba(26,26,24,0.42);
+    --text-faint: rgba(26,26,24,0.22);
+    --glass: rgba(0,0,0,0.05);
+    --glass-line: rgba(0,0,0,0.14);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    height: 100%; overflow: hidden;
+    background: #050505;
+    font-family: 'Manrope', sans-serif;
+    color: var(--text);
+    -webkit-tap-highlight-color: transparent;
+    user-select: none; -webkit-user-select: none;
+    touch-action: none;
+    transition: background 0.6s;
+  }
+  #scene { position: fixed; inset: 0; display: block; }
+
+  header {
+    position: fixed; top: max(26px, env(safe-area-inset-top));
+    left: 0; right: 0; text-align: center; z-index: 3; pointer-events: none;
+  }
+  header .brand { font-size: 11px; font-weight: 500; letter-spacing: 0.42em; text-transform: uppercase; color: var(--text-dim); }
+
+  .icon-btn {
+    position: fixed; top: max(20px, env(safe-area-inset-top));
+    width: 38px; height: 38px;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: none; color: var(--text-dim);
+    cursor: pointer; z-index: 4; transition: color 0.3s;
+  }
+  .icon-btn.on, .icon-btn:active { color: var(--text); }
+  .icon-btn svg { width: 17px; height: 17px; }
+  #soundBtn { right: 16px; }
+  #askBtn { left: 16px; }
+
+  .stats {
+    position: fixed; top: max(70px, calc(env(safe-area-inset-top) + 48px));
+    left: 0; right: 0; display: flex; justify-content: center; gap: 44px;
+    z-index: 2; opacity: 0; transform: translateY(-8px);
+    transition: opacity 0.7s ease, transform 0.7s ease; pointer-events: none;
+  }
+  .stats.show { opacity: 1; transform: translateY(0); }
+  .stat { text-align: center; }
+  .stat .num { font-family: 'Instrument Serif', serif; font-size: 26px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .stat .lbl { margin-top: 6px; font-size: 9px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--text-dim); }
+
+  .question {
+    position: fixed; top: max(118px, calc(env(safe-area-inset-top) + 96px));
+    left: 24px; right: 24px; text-align: center;
+    font-family: 'Instrument Serif', serif; font-style: italic; font-size: 17px;
+    color: var(--text-dim); opacity: 0; transition: opacity 0.5s; pointer-events: none; z-index: 2;
+  }
+  .question.show { opacity: 1; }
+
+  .result {
+    position: fixed; bottom: calc(max(34px, env(safe-area-inset-bottom)) + 158px);
+    left: 0; right: 0; text-align: center; pointer-events: none; z-index: 2;
+  }
+  .result .word {
+    font-family: 'Instrument Serif', serif; font-style: italic; font-size: clamp(34px, 8vw, 50px);
+    opacity: 0; transform: translateY(14px);
+    transition: opacity 0.7s cubic-bezier(0.22,1,0.36,1), transform 0.7s cubic-bezier(0.22,1,0.36,1);
+    text-shadow: 0 2px 24px rgba(0,0,0,0.5);
+  }
+  .result .word.show { opacity: 1; transform: translateY(0); }
+  .result .streak {
+    margin-top: 7px; font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase;
+    color: var(--text-dim); opacity: 0; transition: opacity 0.7s ease 0.15s;
+  }
+  .result .streak.show { opacity: 1; }
+
+  .history {
+    position: fixed; bottom: calc(max(34px, env(safe-area-inset-bottom)) + 124px);
+    left: 0; right: 0; display: flex; justify-content: center; gap: 9px; pointer-events: none; z-index: 2;
+  }
+  .history .dot { width: 6px; height: 6px; border-radius: 50%; border: 1px solid var(--text-dim); }
+  .history .dot.h { background: var(--text); }
+  .history .dot.new { animation: pop 0.4s cubic-bezier(0.34,1.56,0.64,1); }
+  @keyframes pop { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+
+  .hint {
+    position: fixed; bottom: calc(max(34px, env(safe-area-inset-bottom)) + 122px);
+    left: 0; right: 0; text-align: center; font-size: 10px; letter-spacing: 0.34em; text-transform: uppercase;
+    color: var(--text-faint); transition: opacity 0.6s ease; z-index: 2;
+  }
+  .hint.hide { opacity: 0; }
+
+  /* ---- bottom dock ---- */
+  .dock {
+    position: fixed; bottom: max(30px, env(safe-area-inset-bottom));
+    left: 0; right: 0; display: flex; justify-content: center; gap: 14px; z-index: 6;
+  }
+  .dock button {
+    display: flex; align-items: center; gap: 9px;
+    padding: 13px 22px; border-radius: 100px;
+    background: var(--glass); border: 1px solid var(--glass-line);
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    color: var(--text); font-family: 'Manrope', sans-serif;
+    font-size: 10.5px; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 500;
+    cursor: pointer; transition: transform 0.2s, background 0.3s;
+  }
+  .dock button:active { transform: scale(0.96); }
+  .dock button svg { width: 16px; height: 16px; }
+
+  /* ---- scrim ---- */
+  .scrim {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+    opacity: 0; pointer-events: none; transition: opacity 0.4s; z-index: 15;
+    backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+  }
+  .scrim.show { opacity: 1; pointer-events: auto; }
+
+  /* ---- bottom sheet ---- */
+  .sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+    background: rgba(14,14,15,0.9);
+    backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
+    border-top-left-radius: 28px; border-top-right-radius: 28px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    padding: 12px 22px calc(env(safe-area-inset-bottom) + 30px);
+    transform: translateY(112%);
+    transition: transform 0.44s cubic-bezier(0.32,0.72,0,1);
+    color: #f5f5f4;
+  }
+  .sheet.open { transform: translateY(0); }
+  .sheet .grab { width: 38px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.24); margin: 0 auto 18px; }
+  .sheet h3 { font-family: 'Instrument Serif', serif; font-style: italic; font-size: 24px; font-weight: 400; margin-bottom: 20px; text-align: center; }
+
+  .grid { display: grid; gap: 20px 10px; max-height: 46vh; overflow-y: auto; scrollbar-width: none; padding-bottom: 6px; }
+  .grid::-webkit-scrollbar { display: none; }
+  .grid.coins { grid-template-columns: repeat(4, 1fr); }
+  .grid.themes { grid-template-columns: repeat(3, 1fr); }
+
+  .opt { background: none; border: none; cursor: pointer; text-align: center; outline: none; display: flex; flex-direction: column; align-items: center; gap: 9px; }
+  .opt .swatch {
+    width: 46px; height: 46px; border-radius: 50%; position: relative;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Instrument Serif', serif; font-size: 20px;
+    transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .opt .swatch::after { content: ''; position: absolute; inset: -6px; border-radius: 50%; border: 1.5px solid transparent; transition: border-color 0.3s; }
+  .opt.active .swatch { transform: scale(1.08); }
+  .opt.active .swatch::after { border-color: rgba(245,245,244,0.6); }
+  .opt .lbl { font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(245,245,244,0.4); transition: color 0.3s; }
+  .opt.active .lbl { color: #f5f5f4; }
+
+  .chip {
+    width: 60px; height: 40px; border-radius: 12px; position: relative;
+    border: 1px solid rgba(255,255,255,0.14);
+    transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .opt.active .chip { transform: scale(1.06); }
+  .opt .chip::after { content: ''; position: absolute; inset: -6px; border-radius: 16px; border: 1.5px solid transparent; transition: border-color 0.3s; }
+  .opt.active .chip::after { border-color: rgba(245,245,244,0.6); }
+
+  .sw-rupee    { background: radial-gradient(circle at 32% 28%, #fdfdfb, #c8c8c4 80%); color: #3c3c38; }
+  .sw-dollar   { background: radial-gradient(circle at 32% 28%, #ecd9a8, #a8873e 80%); color: #5c451a; }
+  .sw-euro     { background: radial-gradient(circle at 32% 28%, #e8d9a4, #b09040 78%); color: #4c4c46; }
+  .sw-euro::before { content:''; position:absolute; inset:9px; border-radius:50%; background: radial-gradient(circle at 35% 30%, #f2f2ef, #c4c4c0); }
+  .sw-euro span { position: relative; z-index: 1; }
+  .sw-sterling { background: radial-gradient(circle at 32% 28%, #fff, #cfcfcc 80%); color: #4a4a46; }
+  .sw-gilt     { background: radial-gradient(circle at 32% 28%, #ffe9b0, #b8892f 80%); color: #6e4a12; }
+  .sw-imperial { background: radial-gradient(circle at 32% 28%, #ded9cf, #948f83 80%); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.2); }
+  .sw-imperial::before { content:''; position:absolute; inset:6px; border-radius:50%; border:1px dashed rgba(40,40,36,0.4); }
+  .sw-dynasty  { background: radial-gradient(circle at 32% 28%, #3c3c3c, #101010 80%); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.16); }
+  .sw-dynasty::before { content:''; position:absolute; inset:15px; background:#0e0e0e; box-shadow: 0 0 0 1px rgba(255,255,255,0.25); }
+  .sw-onyx     { background: radial-gradient(circle at 32% 28%, #4a4a4a, #101010 80%); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.16); color: #d8d8d4; }
+
+  .th-noir   { background: linear-gradient(150deg, #2a2a2a, #050505); }
+  .th-ocean  { background: linear-gradient(150deg, #1d5c8f, #04101c); }
+  .th-forest { background: linear-gradient(150deg, #1f6b40, #04120a); }
+  .th-royale { background: linear-gradient(150deg, #5a2ea0, #0d0518); }
+  .th-ember  { background: linear-gradient(150deg, #b8481e, #120404); }
+  .th-dawn   { background: linear-gradient(150deg, #ffffff, #d8d2c4); }
+
+  /* ---- ask overlay ---- */
+  .ask {
+    position: fixed; inset: 0;
+    background: rgba(5,5,5,0.9);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    z-index: 30; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 32px; opacity: 0; pointer-events: none; transition: opacity 0.4s; color: #f5f5f4;
+  }
+  .ask.open { opacity: 1; pointer-events: auto; }
+  .ask .title { font-family: 'Instrument Serif', serif; font-style: italic; font-size: 30px; margin-bottom: 26px; }
+  .ask input {
+    width: min(90vw, 380px); background: none; border: none; border-bottom: 1px solid rgba(245,245,244,0.28);
+    color: #f5f5f4; font-family: 'Manrope', sans-serif; font-size: 17px; text-align: center; padding: 12px 6px; outline: none;
+  }
+  .ask input::placeholder { color: rgba(245,245,244,0.2); }
+  .ask .actions { display: flex; gap: 14px; margin-top: 34px; }
+  .ask button {
+    background: none; border: 1px solid rgba(245,245,244,0.3); color: #f5f5f4;
+    font-family: 'Manrope', sans-serif; font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase;
+    padding: 13px 26px; border-radius: 100px; cursor: pointer;
+  }
+  .ask button.primary { background: #f5f5f4; color: #0a0a0a; border-color: #f5f5f4; }
+  .ask .note { margin-top: 26px; font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(245,245,244,0.2); }
+</style>
+</head>
+<body>
+
+<canvas id="scene"></canvas>
+
+<header><div class="brand">Flip</div></header>
+
+<button class="icon-btn" id="askBtn" aria-label="Ask the coin">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+    <path d="M9 9a3 3 0 1 1 4.5 2.6c-.9.5-1.5 1-1.5 2.4"/><circle cx="12" cy="17.5" r="0.4" fill="currentColor"/>
+    <circle cx="12" cy="12" r="10"/>
+  </svg>
+</button>
+<button class="icon-btn" id="soundBtn" aria-label="Toggle sound">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/>
+  </svg>
+</button>
+
+<div class="stats" id="stats">
+  <div class="stat"><div class="num" id="headsNum">0</div><div class="lbl" id="headsLbl">Heads</div></div>
+  <div class="stat"><div class="num" id="totalNum">0</div><div class="lbl">Flips</div></div>
+  <div class="stat"><div class="num" id="tailsNum">0</div><div class="lbl" id="tailsLbl">Tails</div></div>
+</div>
+
+<div class="question" id="questionLbl"></div>
+
+<div class="result">
+  <div class="word" id="resultWord"></div>
+  <div class="streak" id="streakLbl"></div>
+</div>
+
+<div class="history" id="history"></div>
+<div class="hint" id="hint">Swipe to flip · double-tap for quick flip</div>
+
+<div class="dock">
+  <button id="coinDockBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/></svg>
+    Coin
+  </button>
+  <button id="themeDockBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="17.5" cy="10.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="8.5" cy="7.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="6.5" cy="12.5" r="1.2" fill="currentColor" stroke="none"/><path d="M12 2a10 10 0 1 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.2 0-1 .8-1.5 1.8-1.5H16a6 6 0 0 0 6-6c0-4.4-4.5-8-10-8Z"/></svg>
+    Theme
+  </button>
+</div>
+
+<div class="scrim" id="scrim"></div>
+
+<div class="sheet" id="coinSheet">
+  <div class="grab"></div>
+  <h3>Choose your coin</h3>
+  <div class="grid coins" id="coinGrid">
+    <button class="opt active" data-skin="rupee"><div class="swatch sw-rupee">₹</div><div class="lbl">Rupee</div></button>
+    <button class="opt" data-skin="dollar"><div class="swatch sw-dollar">$</div><div class="lbl">Dollar</div></button>
+    <button class="opt" data-skin="euro"><div class="swatch sw-euro"><span>€</span></div><div class="lbl">Euro</div></button>
+    <button class="opt" data-skin="imperial"><div class="swatch sw-imperial"></div><div class="lbl">Rome</div></button>
+    <button class="opt" data-skin="dynasty"><div class="swatch sw-dynasty"></div><div class="lbl">Dynasty</div></button>
+    <button class="opt" data-skin="sterling"><div class="swatch sw-sterling">H</div><div class="lbl">Sterling</div></button>
+    <button class="opt" data-skin="gilt"><div class="swatch sw-gilt">H</div><div class="lbl">Gilt</div></button>
+    <button class="opt" data-skin="onyx"><div class="swatch sw-onyx">H</div><div class="lbl">Onyx</div></button>
+  </div>
+</div>
+
+<div class="sheet" id="themeSheet">
+  <div class="grab"></div>
+  <h3>Choose a backdrop</h3>
+  <div class="grid themes" id="themeGrid">
+    <button class="opt active" data-theme="noir"><div class="chip th-noir"></div><div class="lbl">Noir</div></button>
+    <button class="opt" data-theme="ocean"><div class="chip th-ocean"></div><div class="lbl">Ocean</div></button>
+    <button class="opt" data-theme="forest"><div class="chip th-forest"></div><div class="lbl">Forest</div></button>
+    <button class="opt" data-theme="royale"><div class="chip th-royale"></div><div class="lbl">Royale</div></button>
+    <button class="opt" data-theme="ember"><div class="chip th-ember"></div><div class="lbl">Ember</div></button>
+    <button class="opt" data-theme="dawn"><div class="chip th-dawn"></div><div class="lbl">Dawn</div></button>
+  </div>
+</div>
+
+<div class="ask" id="ask">
+  <div class="title">Ask the coin</div>
+  <input id="askInput" type="text" maxlength="80" placeholder="Should I…?" autocomplete="off">
+  <div class="actions">
+    <button id="askCancel">Cancel</button>
+    <button class="primary" id="askGo">Ask</button>
+  </div>
+  <div class="note">Heads means yes · Tails means no</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+
+  /* ============ SKINS ============ */
+  const SKINS = {
+    rupee:    { base:'#e6e6e3', dark:'#a0a09c', ink:'#4a4a45', metalness:1.0, roughness:0.16, clearcoat:0.55, aged:false, motif:'rupee' },
+    dollar:   { base:'#e6cf92', dark:'#93712d', ink:'#5c451c', metalness:1.0, roughness:0.22, clearcoat:0.5,  aged:false, motif:'dollar' },
+    euro:     { base:'#e8d693', dark:'#987a30', ink:'#43433d', metalness:1.0, roughness:0.19, clearcoat:0.55, aged:false, motif:'euro', inner:'#eaeae6', innerDark:'#b2b2ad' },
+    imperial: { base:'#cfc9b8', dark:'#847d6c', ink:'#463f33', metalness:0.9, roughness:0.4,  clearcoat:0.25, aged:true,  motif:'roman' },
+    dynasty:  { base:'#4a4a48', dark:'#181817', ink:'#d0d0ca', metalness:0.9, roughness:0.32, clearcoat:0.4,  aged:true,  motif:'dynasty' },
+    sterling: { base:'#e4e4e1', dark:'#9c9c99', ink:'#54544f', metalness:1.0, roughness:0.15, clearcoat:0.6,  aged:false, motif:'letter' },
+    gilt:     { base:'#f2d485', dark:'#9c6f22', ink:'#6e4a12', metalness:1.0, roughness:0.2,  clearcoat:0.6,  aged:false, motif:'letter' },
+    onyx:     { base:'#363636', dark:'#0d0d0d', ink:'#e2e2de', metalness:1.0, roughness:0.17, clearcoat:0.72, aged:false, motif:'letter' }
+  };
+
+  /* ============ THEMES — visible colored backdrops ============ */
+  const THEMES = {
+    noir:   { bgTop:'#1a1a1a', bgGlow:'rgba(255,255,255,0.06)', bgBot:'#050505', floorIn:'#333', floorMid:'#1e1e1e', floorOut:'#070707', key:'#ffffff', rim:'#ffffff', amb:0.2,  light:false },
+    ocean:  { bgTop:'#0d3a5c', bgGlow:'rgba(70,160,230,0.4)',   bgBot:'#030a14', floorIn:'#1f4a6e', floorMid:'#123049', floorOut:'#04121e', key:'#dcecff', rim:'#79b4ec', amb:0.24, light:false },
+    forest: { bgTop:'#0e3a22', bgGlow:'rgba(80,200,130,0.34)',  bgBot:'#030c07', floorIn:'#1d4530', floorMid:'#112c1e', floorOut:'#040f0a', key:'#e6f6e6', rim:'#88d8a4', amb:0.24, light:false },
+    royale: { bgTop:'#341c5c', bgGlow:'rgba(160,100,240,0.38)', bgBot:'#08030f', floorIn:'#341f52', floorMid:'#20143a', floorOut:'#0a0514', key:'#f0e6ff', rim:'#b18cec', amb:0.24, light:false },
+    ember:  { bgTop:'#5a1e0c', bgGlow:'rgba(245,130,55,0.4)',   bgBot:'#0c0302', floorIn:'#4a2414', floorMid:'#2c150c', floorOut:'#0e0403', key:'#ffe6d0', rim:'#ec8c58', amb:0.24, light:false },
+    dawn:   { bgTop:'#fbf8f1', bgGlow:'rgba(255,246,224,0.7)',  bgBot:'#cfc9bb', floorIn:'#fdfcf8', floorMid:'#e2ddd2', floorOut:'#bcb6a8', key:'#ffffff', rim:'#ffffff', amb:0.5,  light:true }
+  };
+
+  /* ============ ARC TEXT ============ */
+  // position: 'top' (centered at 12 o'clock, reads L→R) or 'bottom' (centered at 6 o'clock, reads L→R)
+  function arcText(x, str, radius, position, size, font, ink) {
+    x.save();
+    x.font = `600 ${size}px ${font}`;
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    const chars = str.split('');
+    const kern = 1.12;
+    const arcs = chars.map(ch => (x.measureText(ch).width * kern) / radius);
+    const totalArc = arcs.reduce((a, b) => a + b, 0);
+    const bottom = (position === 'bottom');
+    let theta = bottom ? (Math.PI + totalArc / 2) : (-totalArc / 2);
+    for (let i = 0; i < chars.length; i++) {
+      theta += (bottom ? -arcs[i] : arcs[i]) / 2;
+      const px = Math.sin(theta) * radius;
+      const py = -Math.cos(theta) * radius;
+      x.save();
+      x.translate(px, py);
+      x.rotate(bottom ? theta + Math.PI : theta);
+      x.fillStyle = 'rgba(0,0,0,0.5)'; x.fillText(chars[i], 1.4, 2);
+      x.fillStyle = 'rgba(255,255,255,0.32)'; x.fillText(chars[i], -1, -1.4);
+      x.fillStyle = ink; x.fillText(chars[i], 0, 0);
+      x.restore();
+      theta += (bottom ? -arcs[i] : arcs[i]) / 2;
+    }
+    x.restore();
+  }
+
+  function innerFrame(x, r) {
+    x.beginPath(); x.arc(0, 0, r, 0, 6.29); x.strokeStyle = 'rgba(0,0,0,0.34)'; x.lineWidth = 4; x.stroke();
+    x.beginPath(); x.arc(0, 0, r - 6, 0, 6.29); x.strokeStyle = 'rgba(255,255,255,0.24)'; x.lineWidth = 2; x.stroke();
+  }
+  function sepDots(x, r, angs, S) {
+    angs.forEach(a => {
+      const dx = Math.cos(a) * r, dy = Math.sin(a) * r;
+      x.beginPath(); x.arc(dx, dy, 7, 0, 6.29); x.fillStyle = S.ink; x.fill();
+    });
+  }
+
+  /* ============ FACE TEXTURE ============ */
+  function makeFaceCanvas(skin, side) {
+    const S = SKINS[skin];
+    const c = document.createElement('canvas');
+    c.width = c.height = 2048;
+    const x = c.getContext('2d');
+    x.scale(2, 2);
+    const cx = 512, cy = 512;
+
+    const g = x.createRadialGradient(cx - 180, cy - 200, 60, cx, cy, 600);
+    g.addColorStop(0, lighten(S.base, 26));
+    g.addColorStop(0.45, S.base);
+    g.addColorStop(1, S.dark);
+    x.fillStyle = g;
+    x.beginPath(); x.arc(cx, cy, 508, 0, 6.29); x.fill();
+
+    if (S.motif === 'euro') {
+      const ig = x.createRadialGradient(cx - 120, cy - 140, 40, cx, cy, 360);
+      ig.addColorStop(0, lighten(S.inner, 18)); ig.addColorStop(0.6, S.inner); ig.addColorStop(1, S.innerDark);
+      x.fillStyle = ig; x.beginPath(); x.arc(cx, cy, 336, 0, 6.29); x.fill();
+      x.beginPath(); x.arc(cx, cy, 336, 0, 6.29); x.strokeStyle = 'rgba(0,0,0,0.35)'; x.lineWidth = 4; x.stroke();
+      x.beginPath(); x.arc(cx, cy, 342, 0, 6.29); x.strokeStyle = 'rgba(255,255,255,0.3)'; x.lineWidth = 2; x.stroke();
+    }
+
+    x.save(); x.translate(cx, cy);
+    for (let i = 0; i < 320; i++) {
+      const a = Math.random() * 6.2832;
+      const r0 = 70 + Math.random() * 420, r1 = r0 + 20 + Math.random() * 120;
+      x.beginPath();
+      x.moveTo(Math.cos(a) * r0, Math.sin(a) * r0);
+      x.lineTo(Math.cos(a) * r1, Math.sin(a) * r1);
+      x.strokeStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.035)' : 'rgba(0,0,0,0.045)';
+      x.lineWidth = 0.8 + Math.random() * 1.1;
+      x.stroke();
+    }
+    x.restore();
+
+    if (S.aged) {
+      for (let i = 0; i < 54; i++) {
+        const px = Math.random() * 1024, py = Math.random() * 1024;
+        const pr = 8 + Math.random() * 70;
+        const pg = x.createRadialGradient(px, py, 0, px, py, pr);
+        pg.addColorStop(0, 'rgba(20,14,4,' + (0.05 + Math.random() * 0.1) + ')');
+        pg.addColorStop(1, 'rgba(0,0,0,0)');
+        x.fillStyle = pg; x.beginPath(); x.arc(px, py, pr, 0, 6.29); x.fill();
+      }
+    }
+
+    // beaded rim
+    x.save(); x.translate(cx, cy);
+    for (let i = 0; i < 128; i++) {
+      x.rotate((Math.PI * 2) / 128);
+      x.beginPath(); x.arc(0, -478, 5.4, 0, 6.29); x.fillStyle = 'rgba(0,0,0,0.32)'; x.fill();
+      x.beginPath(); x.arc(-1.4, -479.4, 2.4, 0, 6.29); x.fillStyle = 'rgba(255,255,255,0.4)'; x.fill();
+    }
+    x.restore();
+
+    ring(x, cx, cy, 452, 6);
+
+    x.save(); x.translate(cx, cy);
+
+    if (S.motif === 'letter') {
+      innerFrame(x, 388);
+      engraveText(x, side === 'heads' ? 'H' : 'T', 0, 4, 440, "'Instrument Serif', Georgia, serif", S);
+
+    } else if (S.motif === 'rupee') {
+      innerFrame(x, 388);
+      if (side === 'heads') {
+        engraveText(x, '₹', 0, 30, 340, "'Manrope', Arial, sans-serif", S);
+        arcText(x, 'INDIA', 420, 'top', 50, "'Manrope', sans-serif", S.ink);
+        arcText(x, 'ONE RUPEE', 418, 'bottom', 46, "'Manrope', sans-serif", S.ink);
+        sepDots(x, 340, [Math.PI, 0], S);
+      } else {
+        engraveText(x, '1', 0, -14, 290, "'Instrument Serif', Georgia, serif", S);
+        engraveText(x, 'RUPEE', 0, 160, 54, "'Manrope', sans-serif", S, 0.18);
+        engraveText(x, 'भारत', 0, -302, 60, "'Manrope', sans-serif", S);
+        arcText(x, '2026', 418, 'bottom', 46, "'Manrope', sans-serif", S.ink);
+        sepDots(x, 340, [Math.PI, 0], S);
+      }
+
+    } else if (S.motif === 'dollar') {
+      innerFrame(x, 388);
+      if (side === 'heads') {
+        engraveText(x, '$', 0, 26, 330, "'Instrument Serif', Georgia, serif", S);
+        arcText(x, 'LIBERTY', 420, 'top', 52, "'Manrope', sans-serif", S.ink);
+        arcText(x, 'IN GOD WE TRUST', 416, 'bottom', 38, "'Manrope', sans-serif", S.ink);
+      } else {
+        engraveText(x, '1', 0, -14, 270, "'Instrument Serif', Georgia, serif", S);
+        engraveText(x, 'DOLLAR', 0, 158, 52, "'Manrope', sans-serif", S, 0.16);
+        arcText(x, 'UNITED STATES', 420, 'top', 44, "'Manrope', sans-serif", S.ink);
+        arcText(x, 'E PLURIBUS UNUM', 416, 'bottom', 36, "'Manrope', sans-serif", S.ink);
+      }
+
+    } else if (S.motif === 'euro') {
+      if (side === 'heads') {
+        engraveText(x, '€', 0, 16, 320, "'Manrope', Arial, sans-serif", S);
+        starRing(x, 400, 15, S, 12);
+      } else {
+        engraveText(x, '1', -70, -6, 300, "'Instrument Serif', Georgia, serif", S);
+        engraveText(x, 'EURO', 96, 84, 66, "'Manrope', sans-serif", S, 0.08);
+        starRing(x, 400, 15, S, 12);
+      }
+
+    } else if (S.motif === 'roman') {
+      if (side === 'heads') { drawWreath(x, S); drawBust(x, S); engraveText(x, 'ROMA', 0, 306, 54, "'Manrope', sans-serif", S, 0.26); }
+      else { drawTemple(x, S); engraveText(x, 'S · P · Q · R', 0, 316, 50, "'Manrope', sans-serif", S, 0.14); }
+
+    } else if (S.motif === 'dynasty') {
+      const q = 126;
+      x.fillStyle = '#0a0a0a'; x.fillRect(-q, -q, q * 2, q * 2);
+      x.strokeStyle = 'rgba(255,255,255,0.35)'; x.lineWidth = 8; x.strokeRect(-q, -q, q * 2, q * 2);
+      x.strokeStyle = 'rgba(0,0,0,0.65)'; x.lineWidth = 3; x.strokeRect(-q - 8, -q - 8, q * 2 + 16, q * 2 + 16);
+      const marks = side === 'heads' ? ['天','下','太','平'] : ['吉','祥','如','意'];
+      const pos = [[0,-286],[286,0],[0,286],[-286,0]];
+      x.font = '120px Georgia, serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+      pos.forEach((p, i) => {
+        x.fillStyle = 'rgba(0,0,0,0.55)'; x.fillText(marks[i], p[0] + 3, p[1] + 4);
+        x.fillStyle = 'rgba(255,255,255,0.18)'; x.fillText(marks[i], p[0] - 2, p[1] - 2);
+        x.fillStyle = S.ink; x.fillText(marks[i], p[0], p[1]);
+      });
+    }
+    x.restore();
+
+    return c;
+
+    function ring(ctx, rx, ry, r, w) {
+      ctx.beginPath(); ctx.arc(rx, ry, r, 0, 6.29);
+      ctx.strokeStyle = 'rgba(0,0,0,0.42)'; ctx.lineWidth = w; ctx.stroke();
+      ctx.beginPath(); ctx.arc(rx, ry, r + w * 0.85, 0, 6.29);
+      ctx.strokeStyle = 'rgba(255,255,255,0.26)'; ctx.lineWidth = w * 0.5; ctx.stroke();
+    }
+  }
+
+  function starRing(x, r, size, S, count, skipAngles) {
+    const n = count || 24;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 - Math.PI / 2;
+      x.save();
+      x.translate(Math.cos(a) * r, Math.sin(a) * r);
+      x.rotate(a + Math.PI / 2);
+      star(x, size, S);
+      x.restore();
+    }
+    function star(ctx, s, sk) {
+      ctx.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const rr = i % 2 === 0 ? s : s * 0.42;
+        const aa = (i / 10) * Math.PI * 2 - Math.PI / 2;
+        i === 0 ? ctx.moveTo(Math.cos(aa) * rr, Math.sin(aa) * rr) : ctx.lineTo(Math.cos(aa) * rr, Math.sin(aa) * rr);
+      }
+      ctx.closePath();
+      ctx.save(); ctx.translate(1.4, 1.4); ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fill(); ctx.restore();
+      ctx.fillStyle = sk.ink; ctx.fill();
+    }
+  }
+
+  function engraveText(x, txt, tx, ty, size, font, S, spacing) {
+    x.font = `${size}px ${font}`; x.textAlign = 'center'; x.textBaseline = 'middle';
+    if (spacing) {
+      const chars = txt.split('');
+      const widths = chars.map(ch => x.measureText(ch).width);
+      const sp = size * spacing;
+      const total = widths.reduce((a, b) => a + b, 0) + sp * (chars.length - 1);
+      let px = tx - total / 2;
+      chars.forEach((ch, i) => {
+        const w = widths[i];
+        x.fillStyle = 'rgba(0,0,0,0.5)'; x.fillText(ch, px + w / 2 + 2, ty + 3);
+        x.fillStyle = 'rgba(255,255,255,0.32)'; x.fillText(ch, px + w / 2 - 1.6, ty - 2);
+        x.fillStyle = S.ink; x.fillText(ch, px + w / 2, ty);
+        px += w + sp;
+      });
+      return;
+    }
+    x.fillStyle = 'rgba(0,0,0,0.6)'; x.fillText(txt, tx + 7, ty + 9);
+    x.fillStyle = 'rgba(0,0,0,0.3)'; x.fillText(txt, tx + 3, ty + 4);
+    x.fillStyle = 'rgba(255,255,255,0.5)'; x.fillText(txt, tx - 5, ty - 6);
+    x.fillStyle = S.ink; x.fillText(txt, tx, ty);
+  }
+
+  function drawWreath(x, S) {
+    for (const side of [-1, 1]) {
+      for (let i = 0; i < 12; i++) {
+        const a = -Math.PI * 0.42 + (Math.PI * 0.84) * (i / 11);
+        const lx = side * Math.sin(a + Math.PI / 2) * 332;
+        const ly = -Math.cos(a + Math.PI / 2) * 332 + 40;
+        x.save(); x.translate(lx, ly); x.rotate(side * (0.4 + i * 0.15));
+        x.beginPath(); x.ellipse(3, 4, 14, 34, 0, 0, 6.29); x.fillStyle = 'rgba(0,0,0,0.48)'; x.fill();
+        x.beginPath(); x.ellipse(0, 0, 14, 34, 0, 0, 6.29); x.fillStyle = S.ink; x.fill();
+        x.beginPath(); x.ellipse(-3, -5, 6, 22, 0, 0, 6.29); x.fillStyle = 'rgba(255,255,255,0.24)'; x.fill();
+        x.restore();
+      }
+    }
+  }
+  function drawBust(x, S) {
+    x.save(); x.scale(2.15, 2.15);
+    const p = new Path2D('M-14 62 C-18 40 -20 18 -16 -2 C-13 -20 -6 -36 6 -42 C18 -48 30 -42 33 -30 C35 -21 33 -15 28 -10 C30 -7 30 -3 27 -1 C29 2 27 7 22 9 C22 17 17 25 9 28 C9 40 12 51 18 62 Z');
+    x.fillStyle = 'rgba(0,0,0,0.55)'; x.save(); x.translate(3, 3); x.fill(p); x.restore();
+    x.fillStyle = S.ink; x.fill(p);
+    x.fillStyle = 'rgba(255,255,255,0.18)'; x.save(); x.translate(-2, -2); x.scale(0.97, 0.97); x.fill(p); x.restore();
+    x.restore();
+  }
+  function drawTemple(x, S) {
+    x.save(); x.scale(2.05, 2.05);
+    const ink = S.ink;
+    function block(bx, by, bw, bh) {
+      x.fillStyle = 'rgba(0,0,0,0.55)'; x.fillRect(bx + 2.5, by + 2.5, bw, bh);
+      x.fillStyle = ink; x.fillRect(bx, by, bw, bh);
+      x.fillStyle = 'rgba(255,255,255,0.22)'; x.fillRect(bx, by, bw, 2.5);
+    }
+    x.beginPath(); x.moveTo(-95, -52); x.lineTo(0, -95); x.lineTo(95, -52); x.closePath();
+    x.fillStyle = 'rgba(0,0,0,0.55)'; x.save(); x.translate(3, 3); x.fill(); x.restore();
+    x.fillStyle = ink; x.fill();
+    block(-100, -50, 200, 10);
+    for (const cxp of [-78, -28, 22, 72]) block(cxp, -34, 12, 84);
+    block(-100, 54, 200, 10); block(-108, 68, 216, 10);
+    x.restore();
+  }
+
+  function lighten(hex, amt) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = Math.min(255, (n >> 16) + amt), g = Math.min(255, ((n >> 8) & 255) + amt), b = Math.min(255, (n & 255) + amt);
+    return `rgb(${r},${g},${b})`;
+  }
+
+  function makeEdgeCanvas(skin) {
+    const S = SKINS[skin];
+    const c = document.createElement('canvas');
+    c.width = 1024; c.height = 96;
+    const x = c.getContext('2d');
+    const g = x.createLinearGradient(0, 0, 0, 96);
+    g.addColorStop(0, S.dark); g.addColorStop(0.5, lighten(S.base, 8)); g.addColorStop(1, S.dark);
+    x.fillStyle = g; x.fillRect(0, 0, 1024, 96);
+    for (let i = 0; i < 1024; i += 7) {
+      x.fillStyle = 'rgba(0,0,0,0.42)'; x.fillRect(i, 0, 3, 96);
+      x.fillStyle = 'rgba(255,255,255,0.3)'; x.fillRect(i + 3, 0, 1.3, 96);
+    }
+    return c;
+  }
+
+  function makeEnvMap() {
+    const faces = [];
+    for (let f = 0; f < 6; f++) {
+      const c = document.createElement('canvas');
+      c.width = c.height = 256;
+      const x = c.getContext('2d');
+      const g = x.createLinearGradient(0, 0, 0, 256);
+      if (f === 2) { g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#8a8a88'); }
+      else if (f === 3) { g.addColorStop(0, '#141414'); g.addColorStop(1, '#040404'); }
+      else { g.addColorStop(0, '#a6a6a4'); g.addColorStop(0.5, '#2a2a2a'); g.addColorStop(1, '#070707'); }
+      x.fillStyle = g; x.fillRect(0, 0, 256, 256);
+      if (f !== 3) {
+        x.fillStyle = 'rgba(255,255,255,0.95)'; x.fillRect(30, 26, 196, 30);
+        x.fillStyle = 'rgba(255,255,255,0.5)'; x.fillRect(48, 150, 160, 14);
+        const gg = x.createLinearGradient(0, 56, 0, 120);
+        gg.addColorStop(0, 'rgba(255,255,255,0.35)'); gg.addColorStop(1, 'rgba(255,255,255,0)');
+        x.fillStyle = gg; x.fillRect(30, 56, 196, 64);
+      }
+      faces.push(c);
+    }
+    const tex = new THREE.CubeTexture(faces);
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  /* ============ SCENE ============ */
+  const canvas = $('scene');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.1, 100);
+  camera.position.set(0, 1.9, 9.4);
+  camera.lookAt(0, 1.78, 0);
+
+  const envMap = makeEnvMap();
+
+  const amb = new THREE.AmbientLight('#ffffff', 0.2);
+  scene.add(amb);
+  const key = new THREE.DirectionalLight('#ffffff', 1.05);
+  key.position.set(4, 9, 6);
+  key.castShadow = true;
+  key.shadow.mapSize.set(2048, 2048);
+  key.shadow.camera.left = -6; key.shadow.camera.right = 6;
+  key.shadow.camera.top = 6; key.shadow.camera.bottom = -6;
+  key.shadow.radius = 8;
+  scene.add(key);
+  const rim = new THREE.DirectionalLight('#ffffff', 0.7);
+  rim.position.set(-6, 4, -5);
+  scene.add(rim);
+  const spec = new THREE.PointLight('#ffffff', 0.5, 40);
+  spec.position.set(-2.5, 3.5, 7);
+  scene.add(spec);
+
+  /* ---- background gradient texture ---- */
+  let bgTex = null;
+  function makeBgTexture(T) {
+    const c = document.createElement('canvas');
+    c.width = 512; c.height = 910;
+    const x = c.getContext('2d');
+    const lin = x.createLinearGradient(0, 0, 0, 910);
+    lin.addColorStop(0, T.bgTop); lin.addColorStop(1, T.bgBot);
+    x.fillStyle = lin; x.fillRect(0, 0, 512, 910);
+    const rad = x.createRadialGradient(256, 250, 40, 256, 250, 560);
+    rad.addColorStop(0, T.bgGlow); rad.addColorStop(1, 'rgba(0,0,0,0)');
+    x.fillStyle = rad; x.fillRect(0, 0, 512, 910);
+    const tex = new THREE.CanvasTexture(c);
+    tex.encoding = THREE.sRGBEncoding;
+    return tex;
+  }
+
+  let floorMesh = null;
+  function buildFloor(T) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 1024;
+    const x = c.getContext('2d');
+    const g = x.createRadialGradient(512, 512, 60, 512, 512, 512);
+    g.addColorStop(0, T.floorIn); g.addColorStop(0.55, T.floorMid); g.addColorStop(1, T.floorOut);
+    x.fillStyle = g; x.fillRect(0, 0, 1024, 1024);
+    const rA = T.light ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.12)';
+    const rB = T.light ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.06)';
+    x.beginPath(); x.arc(512, 512, 360, 0, 6.29); x.strokeStyle = rA; x.lineWidth = 2; x.stroke();
+    x.beginPath(); x.arc(512, 512, 200, 0, 6.29); x.strokeStyle = rB; x.lineWidth = 1.5; x.stroke();
+    const tex = new THREE.CanvasTexture(c);
+    if (floorMesh) { floorMesh.material.map.dispose(); floorMesh.material.map = tex; floorMesh.material.needsUpdate = true; }
+    else {
+      floorMesh = new THREE.Mesh(new THREE.CircleGeometry(14, 64),
+        new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, metalness: 0.1 }));
+      floorMesh.rotation.x = -Math.PI / 2; floorMesh.receiveShadow = true;
+      scene.add(floorMesh);
+    }
+  }
+
+  function applyTheme(name) {
+    const T = THEMES[name];
+    if (bgTex) bgTex.dispose();
+    bgTex = makeBgTexture(T);
+    scene.background = bgTex;
+    scene.fog = new THREE.Fog(T.bgBot, 17, 36);
+    key.color.set(T.key); rim.color.set(T.rim); amb.intensity = T.amb;
+    buildFloor(T);
+    document.body.classList.toggle('light', T.light);
+    document.body.style.background = T.bgBot;
+  }
+  applyTheme('noir');
+
+  /* ============ COIN ============ */
+  const COIN_R = 1.5, COIN_T = 0.2, BEVEL = 0.15;
+  const FACE_R = COIN_R - BEVEL;
+  const IDLE_Y = 1.78;
+  const coinGroup = new THREE.Group();
+  coinGroup.position.set(0, IDLE_Y, 0);
+  scene.add(coinGroup);
+
+  let coinParts = null;
+  let currentSkin = 'rupee';
+  function disposeMesh(m) { m.geometry.dispose(); if (m.material.map) m.material.map.dispose(); m.material.dispose(); }
+
+  function buildCoin(skin) {
+    currentSkin = skin;
+    if (coinParts) {
+      coinGroup.remove(coinParts.group);
+      [coinParts.headsMesh, coinParts.tailsMesh, coinParts.edgeMesh].forEach(disposeMesh);
+    }
+    const S = SKINS[skin];
+    const matBase = { metalness: S.metalness, roughness: S.roughness, envMap, envMapIntensity: 1.5, clearcoat: S.clearcoat, clearcoatRoughness: 0.16, reflectivity: 0.6 };
+
+    const headsTex = new THREE.CanvasTexture(makeFaceCanvas(skin, 'heads'));
+    const tailsTex = new THREE.CanvasTexture(makeFaceCanvas(skin, 'tails'));
+    const edgeTex  = new THREE.CanvasTexture(makeEdgeCanvas(skin));
+    edgeTex.wrapS = THREE.RepeatWrapping; edgeTex.repeat.set(6, 1);
+    [headsTex, tailsTex, edgeTex].forEach(t => { t.encoding = THREE.sRGBEncoding; t.anisotropy = 16; });
+
+    const headsMesh = new THREE.Mesh(new THREE.CircleGeometry(FACE_R, 128),
+      new THREE.MeshPhysicalMaterial({ map: headsTex, bumpMap: headsTex, bumpScale: 0.04, ...matBase }));
+    headsMesh.position.z = COIN_T / 2; headsMesh.castShadow = true;
+
+    const tailsGeo = new THREE.CircleGeometry(FACE_R, 128); tailsGeo.rotateY(Math.PI);
+    const tailsMesh = new THREE.Mesh(tailsGeo,
+      new THREE.MeshPhysicalMaterial({ map: tailsTex, bumpMap: tailsTex, bumpScale: 0.04, ...matBase }));
+    tailsMesh.position.z = -COIN_T / 2; tailsMesh.castShadow = true;
+
+    const pts = [];
+    for (let i = 0; i <= 26; i++) {
+      const fr = i / 26;
+      pts.push(new THREE.Vector2(FACE_R + BEVEL * Math.sin(fr * Math.PI), -COIN_T / 2 + fr * COIN_T));
+    }
+    const edgeGeo = new THREE.LatheGeometry(pts, 160); edgeGeo.rotateX(Math.PI / 2);
+    const edgeMesh = new THREE.Mesh(edgeGeo,
+      new THREE.MeshPhysicalMaterial({ map: edgeTex, bumpMap: edgeTex, bumpScale: 0.02, side: THREE.DoubleSide, ...matBase }));
+    edgeMesh.castShadow = true;
+
+    const group = new THREE.Group();
+    group.add(edgeMesh, headsMesh, tailsMesh);
+    coinGroup.add(group);
+    coinParts = { group, headsMesh, tailsMesh, edgeMesh };
+  }
+  buildCoin('rupee');
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => buildCoin(currentSkin));
+  }
+
+  /* ============ ANIMATION ============ */
+  const IDLE_SPIN = 0.28;
+  let restY = 0, previewTilt = 0, dragTiltTarget = 0;
+  let dragging = false, spinning = false, spinAnim = null;
+  let clockT = 0;
+  function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+
+  function startFlip(direction, velocity) {
+    spinning = true;
+    hint.classList.add('hide');
+    resultWord.classList.remove('show');
+    streakLbl.classList.remove('show');
+    const isHeads = Math.random() < 0.5;
+    const spins = 5 + Math.min(4, Math.floor(velocity * 4));
+    const current = ((restY % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    let delta = ((isHeads ? 0 : Math.PI) - current + Math.PI * 2) % (Math.PI * 2);
+    if (direction < 0) delta -= Math.PI * 2;
+    const from = restY + previewTilt;
+    const to = restY + direction * spins * Math.PI * 2 + delta;
+    previewTilt = 0;
+    const dur = 2.0 + Math.min(0.9, velocity * 0.6);
+    spinAnim = { t: 0, dur, from, to, isHeads };
+    whoosh(Math.min(dur, 1.4));
+  }
+
+  let last = performance.now();
+  function tick(now) {
+    const dt = Math.min((now - last) / 1000, 0.05);
+    last = now; clockT += dt;
+    coinGroup.position.y = IDLE_Y + Math.sin(clockT * 1.3) * 0.12;
+
+    if (spinAnim) {
+      spinAnim.t += dt;
+      const p = Math.min(1, spinAnim.t / spinAnim.dur);
+      coinGroup.rotation.y = spinAnim.from + (spinAnim.to - spinAnim.from) * easeOutCubic(p);
+      if (p >= 1) { restY = spinAnim.to; coinGroup.rotation.y = restY; spinning = false; land(spinAnim.isHeads); spinAnim = null; }
+    } else if (dragging) {
+      previewTilt = dragTiltTarget;
+      coinGroup.rotation.y = restY + previewTilt;
+    } else {
+      restY += dt * IDLE_SPIN;
+      previewTilt += (0 - previewTilt) * Math.min(1, dt * 10);
+      coinGroup.rotation.y = restY + previewTilt;
+    }
+    coinGroup.rotation.x = Math.sin(clockT * 0.6) * 0.04;
+    renderer.render(scene, camera);
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+
+  window.addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+
+  /* ============ SOUND ============ */
+  let audioCtx = null, soundOn = false;
+  const soundBtn = $('soundBtn');
+  soundBtn.addEventListener('click', () => {
+    soundOn = !soundOn;
+    soundBtn.classList.toggle('on', soundOn);
+    if (soundOn && !audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (soundOn) ping(880, 0.05, 0.04);
+  });
+  function ping(freq, dur, vol) {
+    if (!soundOn || !audioCtx) return;
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    o.frequency.exponentialRampToValueAtTime(freq * 0.6, audioCtx.currentTime + dur);
+    g.gain.setValueAtTime(vol, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + dur);
+  }
+  function whoosh(duration) {
+    if (!soundOn || !audioCtx) return;
+    const len = audioCtx.sampleRate * duration;
+    const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    const src = audioCtx.createBufferSource(); src.buffer = buf;
+    const f = audioCtx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.setValueAtTime(400, audioCtx.currentTime);
+    f.frequency.exponentialRampToValueAtTime(1600, audioCtx.currentTime + duration * 0.6);
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0.05, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+    src.connect(f).connect(g).connect(audioCtx.destination);
+    src.start();
+  }
+  function chime(isHeads) {
+    if (!soundOn || !audioCtx) return;
+    ping(isHeads ? 1046 : 784, 0.35, 0.06);
+    setTimeout(() => ping(isHeads ? 1568 : 1046, 0.4, 0.045), 90);
+  }
+
+  /* ============ GAME STATE ============ */
+  const resultWord = $('resultWord'), streakLbl = $('streakLbl'), hint = $('hint'), stats = $('stats');
+  const headsNum = $('headsNum'), tailsNum = $('tailsNum'), totalNum = $('totalNum');
+  const headsLbl = $('headsLbl'), tailsLbl = $('tailsLbl');
+  const history = $('history'), questionLbl = $('questionLbl');
+  let heads = 0, tails = 0, streak = 0, streakFace = null, question = null;
+  const results = [];
+
+  function land(isHeads) {
+    isHeads ? heads++ : tails++;
+    if (streakFace === isHeads) streak++; else { streakFace = isHeads; streak = 1; }
+    if (question) {
+      resultWord.textContent = isHeads ? 'Yes' : 'No';
+      question = null;
+      setTimeout(() => { questionLbl.classList.remove('show'); headsLbl.textContent = 'Heads'; tailsLbl.textContent = 'Tails'; }, 3400);
+    } else {
+      resultWord.textContent = isHeads ? 'Heads' : 'Tails';
+    }
+    resultWord.classList.add('show');
+    if (streak >= 2) { streakLbl.textContent = `${streak} in a row`; streakLbl.classList.add('show'); }
+    headsNum.textContent = heads; tailsNum.textContent = tails; totalNum.textContent = heads + tails;
+    stats.classList.add('show');
+    results.push(isHeads);
+    if (results.length > 10) results.shift();
+    history.innerHTML = '';
+    results.forEach((r, i) => {
+      const d = document.createElement('div');
+      d.className = 'dot' + (r ? ' h' : '') + (i === results.length - 1 ? ' new' : '');
+      history.appendChild(d);
+    });
+    chime(isHeads);
+    if (navigator.vibrate) navigator.vibrate(streak >= 3 ? [12, 40, 12] : 12);
+  }
+
+  /* ============ SHEETS ============ */
+  const scrim = $('scrim'), coinSheet = $('coinSheet'), themeSheet = $('themeSheet');
+  let openSheetEl = null;
+  function openSheet(el) {
+    if (openSheetEl && openSheetEl !== el) openSheetEl.classList.remove('open');
+    el.classList.add('open');
+    scrim.classList.add('show');
+    openSheetEl = el;
+  }
+  function closeSheets() {
+    coinSheet.classList.remove('open');
+    themeSheet.classList.remove('open');
+    scrim.classList.remove('show');
+    openSheetEl = null;
+  }
+  $('coinDockBtn').addEventListener('click', () => openSheet(coinSheet));
+  $('themeDockBtn').addEventListener('click', () => openSheet(themeSheet));
+  scrim.addEventListener('click', closeSheets);
+  document.querySelectorAll('.grab').forEach(g => g.addEventListener('click', closeSheets));
+
+  $('coinGrid').addEventListener('click', e => {
+    const btn = e.target.closest('.opt');
+    if (!btn || spinning) return;
+    $('coinGrid').querySelectorAll('.opt').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    buildCoin(btn.dataset.skin);
+    ping(660, 0.08, 0.03);
+    if (navigator.vibrate) navigator.vibrate(6);
+  });
+  $('themeGrid').addEventListener('click', e => {
+    const btn = e.target.closest('.opt');
+    if (!btn) return;
+    $('themeGrid').querySelectorAll('.opt').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    applyTheme(btn.dataset.theme);
+    ping(740, 0.08, 0.03);
+    if (navigator.vibrate) navigator.vibrate(6);
+  });
+
+  /* ============ ASK ============ */
+  const ask = $('ask'), askInput = $('askInput');
+  $('askBtn').addEventListener('click', () => { ask.classList.add('open'); setTimeout(() => askInput.focus(), 350); });
+  $('askCancel').addEventListener('click', () => { ask.classList.remove('open'); askInput.blur(); });
+  $('askGo').addEventListener('click', startAsk);
+  askInput.addEventListener('keydown', e => { if (e.key === 'Enter') startAsk(); });
+  function startAsk() {
+    const q = askInput.value.trim();
+    question = q || 'Should I?';
+    questionLbl.textContent = '“' + question + '”';
+    questionLbl.classList.add('show');
+    headsLbl.textContent = 'Yes'; tailsLbl.textContent = 'No';
+    ask.classList.remove('open'); askInput.blur();
+    setTimeout(() => { if (!spinning) startFlip(1, 0.7); }, 450);
+  }
+
+  /* ============ INPUT ============ */
+  let startX = null, startY = null, startTime = 0, lastTap = 0;
+  function inUI(t) { return t.closest && (t.closest('.dock') || t.closest('.sheet') || t.closest('.scrim') || t.closest('.icon-btn') || t.closest('.ask')); }
+  function onStart(x, y, t) {
+    if (spinning || inUI(t) || openSheetEl) return;
+    startX = x; startY = y; startTime = performance.now(); dragging = true;
+  }
+  function onMove(x) {
+    if (!dragging || spinning || startX === null) return;
+    dragTiltTarget = Math.max(-0.55, Math.min(0.55, (x - startX) * 0.0045));
+  }
+  function onEnd(x, y, t) {
+    if (inUI(t) || openSheetEl) return;
+    const now = performance.now();
+    const moved = startX !== null && Math.hypot(x - startX, y - startY) > 12;
+    if (!moved) {
+      if (now - lastTap < 320 && !spinning) { dragging = false; dragTiltTarget = 0; startFlip(1, 0.6); lastTap = 0; startX = null; return; }
+      lastTap = now;
+    }
+    if (!dragging || startX === null) { dragging = false; return; }
+    dragging = false;
+    const dx = x - startX, dy = y - startY;
+    const velocity = Math.abs(dx) / Math.max(now - startTime, 1);
+    const isSwipe = Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.2;
+    const isFlick = velocity > 0.35 && Math.abs(dx) > 18;
+    if ((isSwipe || isFlick) && !spinning) startFlip(dx > 0 ? 1 : -1, velocity);
+    dragTiltTarget = 0; startX = null; startY = null;
+  }
+  document.addEventListener('touchstart', e => onStart(e.touches[0].clientX, e.touches[0].clientY, e.target), { passive: true });
+  document.addEventListener('touchmove',  e => onMove(e.touches[0].clientX), { passive: true });
+  document.addEventListener('touchend',   e => onEnd(e.changedTouches[0].clientX, e.changedTouches[0].clientY, e.target));
+  document.addEventListener('mousedown',  e => onStart(e.clientX, e.clientY, e.target));
+  document.addEventListener('mousemove',  e => onMove(e.clientX));
+  document.addEventListener('mouseup',    e => onEnd(e.clientX, e.clientY, e.target));
+})();
+</script>
+</body>
+</html>
